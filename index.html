@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <title>3D Car</title>
+    <title>x-racing</title>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
     <meta name="viewport"
@@ -11,27 +11,41 @@
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black "/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black "/>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/racingCarRefitting.css">
-    <link rel="stylesheet" href="css/car.css">
-    <link rel="stylesheet" href="css/home.css">
-    <link rel="stylesheet" href="css/swiper6.css">
-    <link rel="stylesheet" href="css/layer.css">
 
-    <script src="js/layout.js"></script>
-    <script src="js/my-config.js"></script>
     <script src="js/jquery-3.1.0.min.js"></script>
-    <script src="js/jquery.cookie.min.js"></script>
     <script src="js/vconsole.min.js"></script>
     <script>
         var vconsole = new VConsole();
     </script>
+    <style>
+        .center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            -ms-transform: translate(-50%,-50%);
+            -moz-transform: translate(-50%,-50%);
+            -o-transform: translate(-50%,-50%);
+            transform: translate(-50%,-50%);
+        }
+        .button{
+            height: 50px;
+            width: 200px;
+            color: #fff;
+            background-color: #00BFFF;
+            line-height: 50px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 16px;
+            border: 1px solid #1E90FF;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
 
 <div style="display: block" class="car-v">
-    <div id="car_page_1" style="display: block;">
-        <img id="car_page_start_btn" src="img/start.png"/>
+    <div id="car_page_1" class="center button">
+        <div id="car_page_start_btn">Start Game</div>
     </div>
 
     <div id="car_page_3" style="display: none;">
@@ -45,7 +59,6 @@
             <div id="car_time">
                 0
             </div>
-            <img class="car-info" alt="游戏规则" src="img/car-info.png"/>
             <div id="container_3d"></div>
             <div id="car-fx-bg" class="car-fx-bg">
                 <div id="car_fx"></div>
@@ -59,11 +72,10 @@
 </body>
 
 <script type="module">
-    import * as THREE from './plugin/three.module.js';
+    import * as THREE from './js/three.module.js';
     // import Stats from './js/stats.module.js';
-    import {OrbitControls} from './plugin/OrbitControls.js';
-    import {FBXLoader} from './plugin/FBXLoader.js';
-    import {Swiper} from './plugin/swiper-bundle.esm.browser.min.js';
+    import {OrbitControls} from './js/OrbitControls.js';
+    import {FBXLoader} from './js/FBXLoader.js';
 
     var carId = "Mazda_suv_0_99";
     var select_car_id = 0;
@@ -897,7 +909,7 @@
 
     var camera, scene, controls, renderer;
     var textureLoader = new THREE.TextureLoader();
-    var resCount = 6 + 3 + 1;
+    var resCount = 1 + 3 + 1;
     var curCount = 0;
 
     var renderLoop = true;
@@ -921,8 +933,6 @@
     function init() {
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 500);
         camera.position.set(0, 3, 10);
-//                camera.position.set(0, 4.6, 4.6);
-//				camera.lookAt(0, 0, 0);
 
         scene = new THREE.Scene();
         scene.add(camera);
@@ -931,26 +941,21 @@
         scene.add(ambientLight);
 
         loadTexture('img/1.png', "1.png");
-        loadTexture('img/2.png', "2.png");
-        loadTexture('img/3.png', "3.png");
-        loadTexture('img/4.png', "4.png");
-        loadTexture('img/5.png', "5.png");
-        loadTexture('img/6.png', "6.png");
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        fbxLoader.load('plugin/luntai.fbx', function (object) {
+        fbxLoader.load('models/car.fbx', function (object) {
             luntaiObj = object;
             allResourceLoaded();
         });
-        fbxLoader.load('plugin/luzhang.fbx', function (object) {
+        fbxLoader.load('models/car.fbx', function (object) {
             luzhangObj = object;
             allResourceLoaded();
         });
-        fbxLoader.load('plugin/youtong.fbx', function (object) {
+        fbxLoader.load('models/car.fbx', function (object) {
             youtongObj = object;
             allResourceLoaded();
         });
-        fbxLoader.load('plugin/saidao.fbx', function (object) {
+        fbxLoader.load('models/car.fbx', function (object) {
             gameRoot = new THREE.Object3D();
             gameRoot.add(object);
 
