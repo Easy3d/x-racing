@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>3D Car</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="viewport"
+          content="width=device-width,maximum-scale=1, minimum-scale=1, initial-scale=1.0, user-scalable=no"/>
+    <meta name="format-detection" content="telephone=no">
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black "/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black "/>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/racingCarRefitting.css">
+    <link rel="stylesheet" href="css/car.css">
+    <link rel="stylesheet" href="css/home.css">
+    <link rel="stylesheet" href="css/swiper6.css">
+    <link rel="stylesheet" href="css/layer.css">
+
+    <script src="js/layout.js"></script>
+    <script src="js/my-config.js"></script>
+    <script src="js/jquery-3.1.0.min.js"></script>
+    <script src="js/jquery.cookie.min.js"></script>
+    <script src="js/vconsole.min.js"></script>
+    <script>
+        var vconsole = new VConsole();
+    </script>
+</head>
+<body>
+
+<div style="display: block" class="car-v">
+    <div id="car_page_1" style="display: block;">
+        <img id="car_page_start_btn" src="img/start.png"/>
+    </div>
+
+    <div id="car_page_3" style="display: none;">
+        <div id="car_game" style="display: none;">
+            <div id="car_km">
+                0 km/h
+            </div>
+            <div id="car_lc">
+                0 km
+            </div>
+            <div id="car_time">
+                0
+            </div>
+            <img class="car-info" alt="游戏规则" src="img/car-info.png"/>
+            <div id="container_3d"></div>
+            <div id="car-fx-bg" class="car-fx-bg">
+                <div id="car_fx"></div>
+            </div>
+            <div class="car-ym-bg">
+                <div id="car_ym"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+
+<script type="module">
+    import * as THREE from './plugin/three.module.js';
+    // import Stats from './js/stats.module.js';
+    import {OrbitControls} from './plugin/OrbitControls.js';
+    import {FBXLoader} from './plugin/FBXLoader.js';
+    import {Swiper} from './plugin/swiper-bundle.esm.browser.min.js';
+
+    var carId = "Mazda_suv_0_99";
+    var select_car_id = 0;
+
+    $("#car_page_start_btn").click(function () {
+        $("#car_page_1").css("display", "none")
+        $("#car_page_3").css("display", "block");
+        $("#car_game").css("display", "block");
+        carId = parseInt(select_car_id) + 1 + ".png"
+        console.log("carId2", select_car_id);
+        main_carid_from_ui(carId);
+        console.log("carId", carId)
+        startGame();
+    });
+
+    var carObj = null;
+    var carMaterial = null;
+    var carTextures = {};
+    var saidaoObj = null;
+    var gameRoot = null;
+
+    var luntaiObj = null;
+    var luzhangObj = null;
+    var youtongObj = null;
+    var ltTotal = 0;
+    var ytTotal = 0;
+    var distance = 0;
+
+    var is_rocker_down = false;
+    // -------------------------------------------------------------------------------------
+    var gSpeedFactor = 1;  // [0,1] --> [0, 120], gSpeed = 80 -- speed [0, 120] km/h, 22.22222 m/s
+    var gElapsedTotal = 0; // 单位秒，游戏时长30秒
+    var gGameRun = false;
+
+    var gTrackIndex = 0;
+    var B = 50;
+
+    // 撞到路障是随机减速，还是直接game over A: 直接game over
+    // 撞击路障、油桶、轮胎，是否有音效 A: 有
+    // 松开油门，多长时间减速到0，长按油门，多少时间加速到120？ A: 松开油门 6秒到0 长按油门12秒到120
+
+    var gCarID = "1.png";
+    var gCarPosX = 0;
+    var gStartPoxZ = 250;
+    var CAR_OFFSET = 3; // [-3 +3]
+
+    var gltSoundPlaying = false;
+    var gytSoundPlaying = false;
+    var gBarSoundPlaying = false;
+    // -------------------------------------------------------------------------------------
+    // Track Manager
+    var G_TRACK_NUM = 8;
+    var Track = [
+        {
+            "id": 1,
+            "trackType": "ARC",
+            "len": Math.PI * B,
+            "center": {"x": B, "z": 0},
+            "radius": B,
+            "theta0": -Math.PI / 2,
+            "theta1": Math.PI / 2,
+            "t": 0
+        },
+        {
+            "id": 2,
+            "trackType": "LINE",
+            "len": 2 * B,
+            "p0": {"x": B, "z": -B},
+            "p1": {"x": -B, "z": -B},
+            "theta": -Math.PI / 2,
+            "t": 0
+        },
+        {
+            "id": 3,
+            "trackType": "ARC",
+            "len": Math.PI * B,
+            "center": {"x": -B, "z": 0},
+            "radius": B,
+            "theta0": Math.PI / 2,
+            "theta1": Math.PI * 3 / 2,
+            "t": 0
+        },
+        {
+            "id": 4,
+            "trackType": "LINE",
+            "len": 2 * B,
+            "p0": {"x": -B, "z": B},
+            "p1": {"x": B, "z": B},
+            "theta": Math.PI / 2,
+            "t": 0
+        },
+
+        {
+            "id": 5,
+            "trackType": "ARC",
+            "len": Math.PI * B,
+            "center": {"x": B, "z": 0},
+            "radius": B,
+            "theta0": -Math.PI / 2,
+            "theta1": Math.PI / 2,
+            "t": 0
+        },
+        {
+            "id": 6,
+            "trackType": "LINE",
+            "len": 2 * B,
+            "p0": {"x": B, "z": -B},
+            "p1": {"x": -B, "z": -B},
+            "theta": -Math.PI / 2,
+            "t": 0
+        },
+        {
+            "id": 7,
+            "trackType": "ARC",
+            "len": Math.PI * B,
+            "center": {"x": -B, "z": 0},
+            "radius": B,
+            "theta0": Math.PI / 2,
+            "theta1": Math.PI * 3 / 2,
+            "t": 0
+        },
+        {
+            "id": 8,
+            "trackType": "LINE",
+            "len": 2 * B,
+            "p0": {"x": -B, "z": B},
+            "p1": {"x": B, "z": B},
+            "theta": Math.PI / 2,
+            "t": 0
+        }
+    ];
+    // 每段轨道 道具分布密度: {加速包 急救包 减速包 红包}
+    var PropsDensity = [
+        {"id": 1, "ltMin": 1, "ltMax": 2, "ytMin": 1, "ytMax": 3, "lzMin": 1, "lzMax": 3},
+        {"id": 2, "ltMin": 1, "ltMax": 2, "ytMin": 1, "ytMax": 3, "lzMin": 1, "lzMax": 3},
+        {"id": 3, "ltMin": 1, "ltMax": 2, "ytMin": 1, "ytMax": 3, "lzMin": 1, "lzMax": 3},
+        {"id": 4, "ltMin": 1, "ltMax": 2, "ytMin": 1, "ytMax": 3, "lzMin": 1, "lzMax": 3},
+//            {"id": 5, "ltMin": 0, "ltMax": 0, "ytMin": 0, "ytMax": 0, "lzMin": 0, "lzMax": 0},
+//            {"id": 6, "ltMin": 0, "ltMax": 0, "ytMin": 0, "ytMax": 0, "lzMin": 0, "lzMax": 0},
+//            {"id": 7, "ltMin": 0, "ltMax": 0, "ytMin": 0, "ytMax": 0, "lzMin": 0, "lzMax": 0},
+//            {"id": 8, "ltMin": 0, "ltMax": 0, "ytMin": 0, "ytMax": 0, "lzMin": 0, "lzMax": 0}
+
+        {"id": 5, "ltMin": 2, "ltMax": 3, "ytMin": 1, "ytMax": 3, "lzMin": 2, "lzMax": 3},
+        {"id": 6, "ltMin": 2, "ltMax": 3, "ytMin": 1, "ytMax": 3, "lzMin": 1, "lzMax": 3},
+        {"id": 7, "ltMin": 2, "ltMax": 3, "ytMin": 1, "ytMax": 3, "lzMin": 2, "lzMax": 3},
+        {"id": 8, "ltMin": 2, "ltMax": 3, "ytMin": 1, "ytMax": 3, "lzMin": 4, "lzMax": 5}
+    ];
+
+    var PodDensity = [
+        {"id": 1, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 2, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 3, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 4, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 5, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 6, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 7, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []},
+        {"id": 8, "ltNum": 0, "ltPodList": [], "ytNum": 0, "ytPodList": [], "lzNum": 0, "lzPodList": []}
+    ];
+
+    var PropHitMode = {"NONE": 0, "HIT": 1, "OMIT": 2};
+
+    function generate_bias(node) {
+//        node.bias = -(CAR_OFFSET-0) / 2; // [-3 +3]
+        if (node.width > 1.0) { // 路障1.886m)
+            var dir = Math.random();
+            if (dir < 0.5) { // left
+                node.bias = -(CAR_OFFSET - 0) / 2; // [-3 +3]
+            } else {
+                node.bias = +(CAR_OFFSET - 0) / 2; // [-3 +3]
+            }
+        } else {
+            node.bias = (2 * Math.random() - 1) * (CAR_OFFSET - 1.0); // -- [-3 +3]
+        }
+    }
+
+    function props_build() {
+        // 随机生成 道具分布
+        props_num_random_per_track();
+        props_t_random_per_track();
+    }
+
+    // 随机生成 加速包 急救包 障碍物 红包
+    // 道具 数量n/每条轨道 随机分布
+    function props_num_random_per_track() {
+        for (var idx = 0; idx < G_TRACK_NUM; idx++) {
+            var ltNum = Math.floor(PropsDensity[idx].ltMin + (PropsDensity[idx].ltMax - PropsDensity[idx].ltMin) * Math.random());
+            var ytNum = Math.floor(PropsDensity[idx].ytMin + (PropsDensity[idx].ytMax - PropsDensity[idx].ytMin) * Math.random());
+            var lzNum = Math.floor(PropsDensity[idx].lzMin + (PropsDensity[idx].lzMax - PropsDensity[idx].lzMin) * Math.random());
+
+            PodDensity[idx].ltNum = ltNum;
+            PodDensity[idx].ytNum = ytNum;
+            PodDensity[idx].lzNum = lzNum;
+            console.log("props_num_random_per_track trackId " + idx + " ltNum " + ltNum + " ytNum " + ytNum + " lzNum " + lzNum);
+        }
+    }
+
+    // 道具 时间t/每条轨道 随机分布
+    function props_t_random_per_track() {
+        for (var idx = 0; idx < G_TRACK_NUM; idx++) {
+            var ltNum = PodDensity[idx].ltNum;
+            var ytNum = PodDensity[idx].ytNum;
+            var lzNum = PodDensity[idx].lzNum;
+            console.log("props_t_random_per_track trackId " + idx + " ltNum " + ltNum + " ytNum " + ytNum + " lzNum " + lzNum);
+            for (var j = 0; j < ltNum; j++) {
+                var dt = 0;
+                if (idx == 0) {
+                    dt = 30 / Track[idx].len; // 前50米不摆放道具
+                }
+                var t = dt + (1 - dt) * Math.random() / ltNum + (j - 0) / ltNum;
+                var lt_rand_node = "ltbox_rand_" + idx + "_" + j;
+                // EDLOG("props_t_random_per_track ltbox_rand_name "..ltbox_rand_name.." t "..t)
+                var node = luntaiObj.clone(true);
+                // node.visible = idx < 4 ? true : false;
+                node.visible = false;
+                node.name = lt_rand_node;
+                node.idx = idx;
+                node.t = t;
+                // node.bias = (2 * Math.random() - 1) * (CAR_OFFSET-1.0); // -- [-3 +3]
+                node.hit_mode = PropHitMode.NONE;
+                node.width = 0.762; // 轮胎0.762m
+                generate_bias(node);
+                props_pos_random_per_track(node);
+                PodDensity[idx].ltPodList[j] = node;
+            }
+            for (var j = 0; j < ytNum; j++) {
+                var dt = 0;
+                if (idx == 0) {
+                    dt = 30 / Track[idx].len; // 前50米不摆放道具
+                }
+                var t = dt + (1 - dt) * Math.random() / ytNum + (j - 0) / ytNum;
+                var yt_rand_name = "yt_rand_" + idx + "_" + j;
+                // EDLOG("props_t_random_per_track ytbox_rand_name "..ytbox_rand_name.." t "..t)
+                var node = youtongObj.clone(true);
+                // node.visible = idx < 4 ? true : false;
+                node.visible = false;
+                node.name = yt_rand_name;
+                node.idx = idx;
+                node.t = t;
+                // node.bias = (2 * Math.random() - 1) * (CAR_OFFSET-1.0); // [-3 +3]
+                node.hit_mode = PropHitMode.NONE;
+                node.width = 0.551; // 油桶0.551m
+                generate_bias(node);
+                props_pos_random_per_track(node);
+                PodDensity[idx].ytPodList[j] = node;
+            }
+            for (var j = 0; j < lzNum; j++) {
+                var dt = 0;
+                if (idx == 0) {
+                    dt = 30 / Track[idx].len; //前50米不摆放道具
+                }
+                var t = dt + (1 - dt) * Math.random() / lzNum + (j - 0) / lzNum;
+                var lz_rand_name = "lz_rand_" + idx + "_" + j;
+                // EDLOG("props_t_random_per_track lzbox_rand_name "..lzbox_rand_name.." t "..t)
+                var node = luzhangObj.clone(true);
+                // node.visible = idx < 4 ? true : false;
+                node.visible = false;
+                node.name = lz_rand_name;
+                node.idx = idx;
+                node.t = t;
+                // var dir = Math.random();
+                // if (dir < 0.5) { // left
+                //     node.bias = -(CAR_OFFSET-0) / 2; // [-3 +3]
+                // } else {
+                //     node.bias = +(CAR_OFFSET-0) / 2; // [-3 +3]
+                // }
+                // node.bias = (2 * Math.random() - 1) * (CAR_OFFSET-1.5); // [-3 +3]
+                node.hit_mode = PropHitMode.NONE;
+                node.width = 1.886; // 路障1.886m
+                generate_bias(node);
+                props_pos_random_per_track(node);
+                PodDensity[idx].lzPodList[j] = node;
+            }
+        }
+    }
+
+    // 道具 坐标p/每条轨道 随机分布
+    function props_pos_random_per_track(new_node) {
+        var idx = new_node.idx;
+        var trackType = Track[idx].trackType;
+
+        if (trackType == "LINE") {
+            var p0 = Track[idx].p0;
+            var p1 = Track[idx].p1;
+
+            var x = p0.x + (p1.x - p0.x) * new_node.t;
+            var z = p0.z + (p1.z - p0.z) * new_node.t;
+            x = x + new_node.bias * Math.cos(Track[idx].theta + Math.PI);
+            z = z - new_node.bias * Math.sin(Track[idx].theta + Math.PI);
+            new_node.position.set(x, 0, z);
+            new_node.rotation.set(0, -Track[idx].theta, 0);
+            // EDLOG("node "..name.."    x "..x..", z "..z..", t "..new_node.t)
+        } else if (trackType == "ARC") {
+            var center = Track[idx].center;
+            var theta = Track[idx].theta0 + (Track[idx].theta1 - Track[idx].theta0) * new_node.t;
+            var x = (Track[idx].radius + new_node.bias) * Math.cos(theta);
+            var z = (Track[idx].radius + new_node.bias) * Math.sin(theta);
+
+            new_node.position.set(center.x + x, 0, center.z - z);
+            new_node.rotation.set(0, theta, 0);
+        }
+    }
+
+    function change_props_status(start /* 开始轨道 */, end /* 截止轨道 */, status  /* 1 add; 2 remove */) {
+        for (var idx = start; idx <= end; idx++) {
+            var ltNum = PodDensity[idx].ltNum;
+            var ytNum = PodDensity[idx].ytNum;
+            var lzNum = PodDensity[idx].lzNum;
+            for (var j = 0; j < ltNum; j++) {
+                var node = PodDensity[idx].ltPodList[j];
+                if (status == 1) {
+                    node.visible = true;
+                    saidaoObj.add(node);
+                } else if (status == 2) {
+                    node.visible = false;
+                    saidaoObj.remove(node);
+                }
+            }
+            for (var j = 0; j < ytNum; j++) {
+                var node = PodDensity[idx].ytPodList[j];
+                if (status == 1) {
+                    node.visible = true;
+                    saidaoObj.add(node);
+                } else if (status == 2) {
+                    node.visible = false;
+                    saidaoObj.remove(node);
+                }
+            }
+            for (var j = 0; j < lzNum; j++) {
+                var node = PodDensity[idx].lzPodList[j];
+                if (status == 1) {
+                    node.visible = true;
+                    saidaoObj.add(node);
+                } else if (status == 2) {
+                    node.visible = false;
+                    saidaoObj.remove(node);
+                }
+            }
+        }
+    }
+
+    function release_props() {
+        // reset value
+        for (var idx = 0; idx < G_TRACK_NUM; idx++) {
+            Track[idx].t = 0;
+        }
+        for (var idx = 0; idx < G_TRACK_NUM; idx++) {
+            var ltNum = PodDensity[idx].ltNum;
+            var ytNum = PodDensity[idx].ytNum;
+            var lzNum = PodDensity[idx].lzNum;
+            // TODO IMPORTANT !!!
+            for (var j = 0; j < ltNum; j++) {
+                node = PodDensity[idx].ltPodList[j]
+                var name = node.get_property_string("name");
+                console.log("release name " + name);
+                var node = saidaoObj.getObjectByName(name);
+                saidaoObj.remove(node)
+            }
+            PodDensity[idx].ltPodList = [];
+            PodDensity[idx].ltNum = 0;
+            for (var j = 0; j < ytNum; j++) {
+                node = PodDensity[idx].ytPodList[j];
+                var name = node.get_property_string("name");
+                console.log("release name " + name);
+                var node = saidaoObj.getObjectByName(name);
+                saidaoObj.remove(node)
+            }
+            PodDensity[idx].ytPodList = [];
+            PodDensity[idx].ytNum = 0;
+            for (var j = 0; j < lzNum; j++) {
+                node = PodDensity[idx].lzPodList[j]
+                var name = node.get_property_string("name");
+                console.log("release name " + name);
+                var node = saidaoObj.getObjectByName(name);
+                saidaoObj.remove(node)
+            }
+            PodDensity[idx].lzPodList = [];
+            PodDensity[idx].lzNum = 0;
+        }
+    }
+
+    function props_hit(prop, dt) {
+
+        if (dt <= 0) {
+            return false;
+        }
+
+        if (prop.hit_mode != PropHitMode.NONE) {
+            return false;
+        }
+
+        console.log("=======================new start=====================");
+        var car_width = 2;    // 车宽 5m
+        var carLeftPosition = gCarPosX - car_width / 2;
+        var carRightPosition = gCarPosX + car_width / 2;
+        var propsLeftPosition = prop.bias - prop.width / 2;
+        var propsRightPosition = prop.bias + prop.width / 2;
+        console.log("props name     :" + prop.name);
+        console.log("props position :[" + propsLeftPosition + "," + propsRightPosition + "]");
+        console.log("car postion    :[" + carLeftPosition + "," + carRightPosition + "]");
+
+        var hitResult = propsRightPosition > carLeftPosition && propsLeftPosition < carRightPosition;
+        if (hitResult) {
+            prop.hit_mode = PropHitMode.HIT;
+        } else {
+            prop.hit_mode = PropHitMode.OMIT;
+        }
+        console.log("hitResult=" + hitResult);
+        return hitResult;
+    }
+
+    // 游戏运行中 实时碰撞检测
+    function collision_detection(idx) {
+        var track_t = Track[idx].t;
+
+        var ltNum = PodDensity[idx].ltNum;
+        var ytNum = PodDensity[idx].ytNum;
+        var lzNum = PodDensity[idx].lzNum;
+        // total = ltNum + ytNum + lzNum + redNum;
+        // scale = 1.5
+        // EDLOG("collision_detection idx "..idx.." ltNum "..ltNum.." ytNum "..ytNum.." lzNum "..lzNum.." redNum "..redNum)
+        for (var j = 0; j < ltNum; j++) {
+            var prop = PodDensity[idx].ltPodList[j];
+            var dt = track_t - prop.t;
+            if (props_hit(prop, dt)) {
+                ltTotal = ltTotal + 1;
+                distance += 50;
+                // update_speed_value(v_dis * second * 27.77/10/33.33)
+                // update_speed_value(1.0 * 1.0 * 27.77 / 10 / 33.33) // [fast 5s->27.77/[5]/33.33, 10s->27.7/[10]/33.33, 15s->27.77/[15]/33.33]
+                // lt_effect();
+                prop.visible = false;
+                racing_hit_btn.play();
+                if (!gltSoundPlaying) {
+                }
+                gltSoundPlaying = true;
+            }
+            update_game_ui();
+        }
+        for (var j = 0; j < ytNum; j++) {
+            var prop = PodDensity[idx].ytPodList[j];
+            var dt = track_t - prop.t;
+            if (props_hit(prop, dt)) {
+                ytTotal = ytTotal + 1;
+                distance += 30;
+                // yt_effect();
+                prop.visible = false;
+                racing_hit_btn.play();
+                if (!gytSoundPlaying) {
+                }
+                gytSoundPlaying = true;
+            }
+            update_game_ui();
+        }
+        for (var j = 0; j < lzNum; j++) {
+            var prop = PodDensity[idx].lzPodList[j];
+            var dt = track_t - prop.t;
+            if (props_hit(prop, dt)) {
+                racing_hit_btn.play();
+                prop.visible = false;
+                if (!gBarSoundPlaying) {
+                }
+                gBarSoundPlaying = true;
+            }
+            update_game_ui();
+        }
+        update_game_ui();
+    }
+
+    // -------------------------------------------------------------------------------------
+    // run loop & track calculation
+    function trackCalculation(idx, elapsed) {
+        var trackType = Track[idx].trackType;
+        if (trackType == "LINE") {
+            LineTrack(idx, elapsed);
+        } else if (trackType == "ARC") {
+            ArcTrack(idx, elapsed);
+        }
+        collision_detection(idx); // todo
+    }
+
+    function LineTrack(idx, elapsed) {
+        Track[idx].t = Track[idx].t + gSpeedFactor * elapsed * 33.333 / Track[idx].len;
+        distance += gSpeedFactor * elapsed * 33.333;
+
+        if (Track[idx].t > 1.0) {
+            console.log("LineArc LineTrack t > 1.0 idx " + idx + " t " + Track[idx].t + " gSpeedFactor " + gSpeedFactor);
+            Track[idx].t = 0.0;
+            gTrackIndex = gTrackIndex + 1;
+            gameStatus();
+//                if (gTrackIndex >= G_TRACK_NUM ) { // || gTrackIndex >= END_TRACK
+//                    gTrackIndex = 0;
+//                    gamewin();
+//                }
+//                getCurrTrackInfo(gTrackIndex, 10/(Track[idx].t-1.0))
+        } else {
+            var p0 = Track[idx].p0;
+            var p1 = Track[idx].p1;
+            var x = p0.x + (p1.x - p0.x) * Track[idx].t;
+            var z = p0.z + (p1.z - p0.z) * Track[idx].t;
+            if (saidaoObj != null) {
+                saidaoObj.position.set(-x, 0, -z);
+            }
+            if (gameRoot != null) {
+                gameRoot.rotation.set(0, Track[idx].theta, 0);
+                gameRoot.position.set(0, 0, 0);
+            }
+        }
+    }
+
+    function ArcTrack(idx, elapsed) {
+        Track[idx].t = Track[idx].t + gSpeedFactor * 33.333 * elapsed / Track[idx].len / 1.0;
+        distance += gSpeedFactor * elapsed * 33.333;
+
+        if (Track[idx].t > 1.0) {
+            console.log("LineArc ArcTrack t > 1.0 idx " + idx + " t " + Track[idx].t + " gSpeedFactor " + gSpeedFactor);
+            Track[idx].t = 0.0;
+            gTrackIndex = gTrackIndex + 1;
+            gameStatus();
+//                if (gTrackIndex >= G_TRACK_NUM) { // || gTrackIndex >= END_TRACK
+//                    gTrackIndex = 0;
+//                    gamewin();
+//                    getCurrTrackInfo(gTrackIndex, 10/(Track[idx].t-1.0))
+//                }
+        } else {
+            var center = Track[idx].center;
+            var theta = Track[idx].theta0 + (Track[idx].theta1 - Track[idx].theta0) * Track[idx].t;
+            var x = Track[idx].radius * Math.cos(theta);
+            var z = Track[idx].radius * Math.sin(theta);
+
+            saidaoObj.position.set(-center.x, 0, -center.z);
+            gameRoot.rotation.set(0, -theta, 0);
+            gameRoot.position.set(-Track[idx].radius, 0, 0);
+        }
+    }
+
+    var acc_dec_factor = 100;
+    var speedUpTime = 0; // 松开油门 6秒到0 长按油门12秒到120
+    function gameLoop(elapsed) {
+        speedUpTime += elapsed;
+        var v_dis = 0;
+        if (is_rocker_down) {
+            v_dis = acc_dec_factor * speedUpTime / 12;
+        } else {
+            v_dis = -2 * acc_dec_factor * speedUpTime / 6;
+        }
+        if (v_dis <= -1.0) {
+            v_dis = -1.0;
+        } else if (v_dis >= 1.0) {
+            v_dis = 1.0;
+        }
+        // console.log("v_dis " + v_dis);
+        update_speed_value(v_dis * elapsed * 27.77 / 10 / 33.33); //[fast 5s->27.77/[5]/33.33, 10s->27.7/[10]/33.33, 15s->27.77/[15]/33.33]
+        // -------------------------------------------------------------------------------------
+        trackCalculation(gTrackIndex, elapsed);
+        gElapsedTotal += elapsed;
+
+        update_game_ui();
+    }
+
+    function gameStatus() {
+        if (gTrackIndex == 3) { // idx从0开始，2跑完，刚到3
+            change_props_status(0, 2, 2); // 则轨道0，1，2 remove
+            change_props_status(4, 6, 1); // 则轨道4，5，6 add
+        } else if (gTrackIndex == 4) { // idx从0开始，3跑跑完，意味着第一圈跑完
+            change_props_status(3, 3, 2); // 则轨道3 remove
+            change_props_status(7, 7, 1); // 则轨道7 add
+        } else if (gTrackIndex >= G_TRACK_NUM) { // || gTrackIndex >= END_TRACK
+            gTrackIndex = 0;
+            gamewin();
+            // getCurrTrackInfo(gTrackIndex, 10/(Track[idx].t-1.0))
+        }
+    }
+
+    function gamewin() {
+        gGameRun = false;
+        console.log("gamewin!");
+        var dis = distance / 1000;
+        var dis_km = dis.toFixed(2)
+        $("#car_end_km").html(dis_km + " Km");
+
+        if (dis_km > 0 && dis_km <= 0.3) {
+            $("#car_end_bg4").css("display", "block");
+        } else if (dis_km > 0.3 && dis_km <= 0.6) {
+            $("#car_end_bg3").css("display", "block");
+        } else if (dis_km > 0.6 && dis_km <= 1) {
+            $("#car_end_bg2").css("display", "block");
+        } else if (dis_km > 1) {
+            $("#car_end_bg1").css("display", "block");
+        } else {
+            $("#car_end_bg4").css("display", "block");
+        }
+
+        $(".car_end").css("display", "block");
+        // racing_bg_btn.pause();
+    }
+
+    function gamelose() {
+        gGameRun = false;
+        console.log("gamelose!");
+        // racing_bg_btn.pause();
+        var dis = distance / 1000;
+        var dis_km = dis.toFixed(2)
+        $("#car_end_km").html(dis_km + " Km");
+
+        if (dis_km > 0 && dis_km <= 0.3) {
+            $("#car_end_bg4").css("display", "block");
+        } else if (dis_km > 0.3 && dis_km <= 0.6) {
+            $("#car_end_bg3").css("display", "block");
+        } else if (dis_km > 0.6 && dis_km <= 1) {
+            $("#car_end_bg2").css("display", "block");
+        } else if (dis_km > 1) {
+            $("#car_end_bg1").css("display", "block");
+        } else {
+            $("#car_end_bg4").css("display", "block");
+        }
+
+        $(".car_end").css("display", "block");
+    }
+
+
+    ////////// 方向盘
+
+    var div1 = document.querySelector('#car_fx');
+    //限制最大宽高，不让滑块出去
+    var maxW = 0;
+
+    $("#car-start").click(function () {
+        console.log(select_car_id);
+
+        $("#carswiper").css("display", "none");
+        $("#car123go").css("display", "block");
+        daoji.play();
+        setTimeout(function () {
+            $("#car_num3").css("display", "none");
+            $("#car_num2").css("display", "block");
+            setTimeout(function () {
+                $("#car_num2").css("display", "none");
+                $("#car_num1").css("display", "block");
+                setTimeout(function () {
+                    $("#car_num1").css("display", "none");
+                    $("#car_go").css("display", "block");
+                    setTimeout(function () {
+                        // 开始游戏
+                        $("#car_start").css("display", "none");
+                        $("#car_game").css("display", "block");
+                        maxW = document.querySelector('#car-fx-bg').offsetWidth - div1.offsetWidth;
+                        carId = parseInt(select_car_id) + 1 + ".png"
+                        console.log("carId2", select_car_id);
+                        main_carid_from_ui(carId);
+                        console.log("carId", carId)
+                        startGame();
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        }, 1000);
+        // maxW = document.body.clientWidth - div1.offsetWidth;
+    });
+
+    var maxH = document.body.clientHeight - div1.offsetHeight;
+    var oL = 0;
+    var oT = 0;
+    //手指触摸开始，记录div的初始位置
+    div1.addEventListener('touchstart', function (e) {
+        console.log("开始oL")
+        var ev = e || window.event;
+        var touch = ev.targetTouches[0];
+        oL = touch.clientX - div1.offsetLeft;
+        oT = touch.clientY - div1.offsetTop;
+        document.addEventListener("touchmove", defaultEvent, false);
+    });
+    //触摸中的，位置记录
+    div1.addEventListener('touchmove', function (e) {
+        var ev = e || window.event;
+        var touch = ev.targetTouches[0];
+        var oLeft = touch.clientX - oL;
+        var oTop = touch.clientY - oT;
+        console.log("开始oL", oL)
+        console.log("开始oLeft", oLeft)
+        console.log("开始maxW", maxW)
+        if (oLeft < 0) {
+            oLeft = 0;
+        } else if (oLeft >= maxW) {
+            oLeft = maxW;
+        }
+        if (oTop < 0) {
+            oTop = 0;
+        } else if (oTop >= maxH) {
+            oTop = maxH;
+        }
+        // 中心坐标为40   正的最大为80 最小为0
+        console.log("oLeft", oLeft)
+        turn_factor_from_ui(oLeft);
+        div1.style.left = oLeft + 'px';
+        // div1.style.top = oTop + 'px';
+    });
+    //触摸结束时的处理
+    div1.addEventListener('touchend', function () {
+        div1.style.left = 40 + 'px';
+        document.removeEventListener("touchmove", defaultEvent);
+    });
+
+    //阻止默认事件
+    function defaultEvent(e) {
+        e.preventDefault();
+    }
+
+    ///////////////////////////
+    // 加速
+    var car_jiasu = document.querySelector('#car_ym');
+    car_jiasu.addEventListener('touchstart', function (e) {
+        console.log(e)
+        e.preventDefault();
+        start_speed_from_ui();
+    });
+    car_jiasu.addEventListener('touchend', function (e) {
+        e.preventDefault();
+        end_speed_from_ui();
+    });
+    car_jiasu.addEventListener('touchcancel', function () {
+        end_speed_from_ui();
+    });
+
+    //////////////
+
+    function startGame() {
+        console.log("startGame --------------------------------")
+        initAndLoop();
+    }
+
+    function reset_game_value() {
+        // reset props value
+        gSpeedFactor = 0.0;
+        gTrackIndex = 0;
+        gElapsedTotal = 0;
+        gGameRun = false;
+        gCarPosX = CAR_OFFSET / 16;
+        ltTotal = 0;
+        ytTotal = 0;
+        distance = 0;
+        update_car_position_value(gCarPosX); // reset car position
+
+        // update ui panel
+        update_game_ui();
+    }
+
+    //  Track Manager End
+    // -------------------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------------------
+    // ui update manager
+    function update_speed_value(speed) {
+        gSpeedFactor = gSpeedFactor + speed;
+        if (gSpeedFactor > 1.0) {
+            gSpeedFactor = 1.0;
+        } else if (gSpeedFactor < 0) {
+            gSpeedFactor = 0.0;
+        }
+    }
+
+    function update_car_position_value(posz) {
+        var offset_x = CAR_OFFSET - 1.25;
+        gCarPosX = gCarPosX + posz;
+        if (gCarPosX < -offset_x) {
+            gCarPosX = -offset_x;
+        }
+        if (gCarPosX > offset_x) {
+            gCarPosX = offset_x;
+        }
+        carObj.position.x = gCarPosX;
+    }
+
+    // var carId = "1.png“;
+    // var carId = "2.png“;
+    // var carId = "3.png“;
+    // var carId = "4.png“;
+    // var carId = "5.png“;
+    // var carId = "6.png“;
+
+    function main_carid_from_ui(carId) {
+        gCarID = carId;
+        if (carMaterial) {
+            carMaterial.map = carTextures[gCarID];
+        }
+    }
+
+    // 0-40 40-80;
+    function turn_factor_from_ui(factor) {
+        console.log("左右偏移值：", factor);
+        var delta = factor - 40;
+        delta = delta / 40 * CAR_OFFSET * 0.05;
+        update_car_position_value(delta);
+    }
+
+    // 松开油门，多长时间减速到0，长按油门，多少时间加速到120？ A: 松开油门6秒到0 长按油门12秒到120
+    function start_speed_from_ui() {
+        console.log("开始加速");
+        is_rocker_down = true;
+        speedUpTime = 0;
+    }
+
+    //
+    function end_speed_from_ui() {
+        console.log("结束加速");
+        is_rocker_down = false;
+        speedUpTime = 0;
+    }
+
+    function update_game_ui() {
+        // 轮胎lt 油桶yt 路障lz 速度speed 里程 剩余时间
+        var speed = Math.floor(gSpeedFactor * 120); // km/h
+        var dis = Math.floor(distance); // km
+        var restTime = Math.floor(30 - gElapsedTotal); // s
+        if (restTime < 0) {
+            restTime = 0;
+            gamewin();
+        }
+        // console.log('distance ' + dis + " km\t speed" + speed + " km/h\trestTime " + restTime);
+        $("#car_km").html(speed + " Km/s");
+        $("#car_lc").html(dis + " Km");
+        $("#car_time").html(restTime);
+    }
+
+    // ui update end
+    // -------------------------------------------------------------------------------------
+    // if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+    var clock = new THREE.Clock();
+
+    var mixers = [];
+    var container;
+    var fbxLoader = new FBXLoader();
+
+    var camera, scene, controls, renderer;
+    var textureLoader = new THREE.TextureLoader();
+    var resCount = 6 + 3 + 1;
+    var curCount = 0;
+
+    var renderLoop = true;
+
+    function initAndLoop() {
+        init();
+        renderLoop = true;
+        animate();
+    }
+
+
+    function pauseLoop() {
+        renderLoop = false;
+    }
+
+    function resumeLoop() {
+        renderLoop = true;
+        animate();
+    }
+
+    function init() {
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 500);
+        camera.position.set(0, 3, 10);
+//                camera.position.set(0, 4.6, 4.6);
+//				camera.lookAt(0, 0, 0);
+
+        scene = new THREE.Scene();
+        scene.add(camera);
+
+        var ambientLight = new THREE.AmbientLight(0xffffff, 2);
+        scene.add(ambientLight);
+
+        loadTexture('img/1.png', "1.png");
+        loadTexture('img/2.png', "2.png");
+        loadTexture('img/3.png', "3.png");
+        loadTexture('img/4.png', "4.png");
+        loadTexture('img/5.png', "5.png");
+        loadTexture('img/6.png', "6.png");
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        fbxLoader.load('plugin/luntai.fbx', function (object) {
+            luntaiObj = object;
+            allResourceLoaded();
+        });
+        fbxLoader.load('plugin/luzhang.fbx', function (object) {
+            luzhangObj = object;
+            allResourceLoaded();
+        });
+        fbxLoader.load('plugin/youtong.fbx', function (object) {
+            youtongObj = object;
+            allResourceLoaded();
+        });
+        fbxLoader.load('plugin/saidao.fbx', function (object) {
+            gameRoot = new THREE.Object3D();
+            gameRoot.add(object);
+
+            object.traverse(function (child) {
+                if (child.isMesh) {
+                    for (var i = 0; i < child.material.length; i++) {
+                        var matg = child.material[i];
+                        matg.color = new THREE.Color(1, 1, 1);
+                    }
+//                            child.castShadow = true;
+//                            child.receiveShadow = true;
+                }
+            });
+//                    var tc = new TWEEN.Tween({theta:0}).to({theta: 2*3.1415926}, 4000)
+//                        .onUpdate(function (argc) {
+////                            gObj.scale.set(argc.theta, argc.theta, argc.theta);
+//                            gObj.rotation.x = argc.theta
+//                        }).start();
+//                    scene.add( gameRoot );
+            saidaoObj = object;
+            // gObj.visible = false;
+
+            allResourceLoaded();
+//                    new TWEEN.Tween({theta:0}).to({theta: 3*3.1415926/2}, 10000)
+//                        .onUpdate(function (argc) {
+//                            gameRoot.rotation.y = argc.theta
+//                            console.log("theta " + argc.theta);
+//                        }).start();
+
+        });
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        container = document.getElementById('container_3d');
+        renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        container.appendChild(renderer.domElement);
+        // renderer = new THREE.WebGLRenderer( {canvas:document.getElementById('mainCanvas'), antialias: true, alpha:true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x0, 0);//0xffffff
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.update();
+        window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function allResourceLoaded() {
+        curCount++;
+        console.log('racing car model progress ' + curCount + " / " + resCount);
+        if (curCount >= resCount) {
+            console.log("racing car all resources are loaded!");
+            // create car object & material
+            var s = 0.0035; // 0.00260417 -> 5m 0.00104167 -> 2m
+            var geometry = new THREE.PlaneGeometry(1920 * s, 1040 * s);
+            carMaterial = new THREE.MeshBasicMaterial({map: carTextures[gCarID], transparent: true});
+            var carObj1 = new THREE.Mesh(geometry, carMaterial);
+            carObj1.position.x = -0.4;
+            carObj1.position.y = 1040 * s / 2 - 0.7;
+            carObj = new THREE.Object3D();
+            carObj.add(carObj1);
+            scene.add(carObj);
+            // start game ------------------------------------------------------
+            // racing_bg_btn.play();
+            // 开始游戏
+            // startGame();
+            scene.add(gameRoot);
+
+            // reset all init value
+            reset_game_value();
+
+            // props recycle & re-random
+            release_props();
+
+            props_build();
+
+            change_props_status(0, 3, 1);
+
+            update_game_ui();
+            gGameRun = true;
+            gSpeedFactor = 0.1;
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        if (renderLoop) {
+            requestAnimationFrame(animate);
+        }
+        render();
+    }
+
+    var paused = false;
+
+    function pause() {
+        paused = !paused;
+    }
+
+    function render() {
+//            TWEEN.update();
+        if (gGameRun && !paused) {
+//                    console.log("clock.getDelta() " + clock.getDelta());
+            gameLoop(clock.getDelta());
+        }
+//            controls.update();
+//                if ( mixers.length > 0 ) {
+//
+//                    for ( var i = 0; i < mixers.length; i ++ ) {
+//
+//                        mixers[ i ].update( clock.getDelta() );
+//
+//                    }
+//
+//                }
+        renderer.render(scene, camera);
+    }
+
+    function loadTexture(url, name) {
+        textureLoader.load(url,
+            function (texture) {
+                carTextures[name] = texture;
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                // console.log('texture loaded ');
+                allResourceLoaded();
+            }, function (progress) {
+                console.log('racing car texture ' + name + ' progress ' + progress);
+            }, function (xhr) {
+                console.log('racing car texture ' + name + ' error ' + xhr);
+            });
+    }
+</script>
+</html>
